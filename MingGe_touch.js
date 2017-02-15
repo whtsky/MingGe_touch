@@ -13,8 +13,8 @@
 				return [rect.left + $DOC.scrollLeft(), rect.top + $DOC.scrollTop()];
 			}
 		},
-		getEvent = function(event) {
-			var touches = event.touches,
+		getEvent = function(event, is) {
+			var touches = is ? event.changedTouches : event.touches,
 				eventbutton = event.button,
 				typebutton = typeof eventbutton,
 				isButtonNumber = typebutton == "number";
@@ -29,7 +29,6 @@
 							X2 = touches1.clientX,
 							Y2 = touches1.clientY;
 					}
-
 				}
 				return {
 					X: X,
@@ -50,17 +49,7 @@
 			}
 			return false;
 		},
-		getNotNull = function() {
-			var len = arguments.length,
-				i = 0,
-				argi;
-			for(; i < len; i++) {
-				argi = arguments[i];
-				if(!$.isUndefined(argi)) {
-					return argi;
-				}
-			}
-		},
+
 		selectionEmpty = function() {
 			if(DOC.selection && DOC.selection.empty) {
 				DOC.selection.empty();
@@ -75,9 +64,6 @@
 				event.cancelBubble = true;
 			}
 		},
-		timeOut = function() {
-			pcLOCK = false;
-		},
 		initTouchEvent = function(elem, op) {
 			var downX, //按下时，X值
 				downY, //按下时，Y值
@@ -90,16 +76,14 @@
 				isPause = false, //是否暂停
 				disL, //开始触摸点与DIV的左距离
 				disT, //开始触摸点与DIV的左顶距离
-				endX, //最后移动的X值
-				endY, // 最后移动的Y值
-				endX2, //第二手指最后移动的X值
-				endY2, //第二手指最后移动的Y值
 				setL, //要设置的左距
 				setT, //要设置的顶距
-
 				oppc = op.pc,
 				opmob = op.mob,
 				opisClick = op.isClick,
+				timeOut = function() {
+					pcLOCK = false;
+				},
 				APIreturn = {
 					stop: function() { // 所有指定线程
 						LOCK = true;
@@ -123,10 +107,6 @@
 						if(isPause) {
 							return;
 						}
-						stopPropagation(event);
-						if(!opisClick) {
-							event.preventDefault();
-						}
 						var ge = getEvent(event);
 						if(ge) {
 							if(oppc) {
@@ -134,7 +114,7 @@
 									if(pcLOCK) {
 										return;
 									}
-								} else if(opisClick) {
+								} else {
 									pcLOCK = true;
 								}
 							}
@@ -143,11 +123,9 @@
 							downX2 = ge.X2;
 							downY2 = ge.Y2;
 						} else {
-							pcLOCK = true;
 							return;
 						}
 						LOCK = false; //设备关锁
-						elem[0].setCapture && elem[0].setCapture();
 						//console.log(ge);
 						var lt = getRect(elem);
 						boxL = lt[0];
@@ -155,7 +133,8 @@
 						disL = downX - boxL;
 						disT = downY - boxT;
 						if(op.down) {
-							op.down.call(elem, event, newAPI, {
+
+							var callback = op.down.call(elem, event, newAPI, {
 								X: downX,
 								Y: downY,
 								X2: downX2,
@@ -165,15 +144,18 @@
 								touchLen: ge.touchLen,
 								dev: ge.dev
 							});
-
+							elem[0].setCapture && elem[0].setCapture();
+							stopPropagation(event);
+							if(!opisClick || callback === false) {
+								event.preventDefault();
+							}
 						}
 					},
 					touchmove: function(event) { //over
 						if(LOCK) {
 							return;
 						}
-						stopPropagation(event);
-						event.preventDefault();
+
 						var ge = getEvent(event);
 						if(oppc && pcLOCK && ge.dev == "pc") {
 							return;
@@ -181,21 +163,16 @@
 						var opClt = clt(op.container);
 						setL = ge.X - disL - op.offsetLeft - opClt[0];
 						setT = ge.Y - disT - op.offsetTop - opClt[1];
-						endX = ge.X;
-						endY = ge.Y;
-						endX2 = ge.X2;
-						endY2 = ge.Y2;
 						//console.log(ge);
-						ge.dev == "pc" && selectionEmpty(); //不让选中
 						//放大缩小逻辑在这
 						if(op.over) {
-							op.over.call(elem, event, newAPI, {
-								X: endX,
-								Y: endY,
+							var callback = op.over.call(elem, event, newAPI, {
+								X: ge.X,
+								Y: ge.Y,
 								downX: downX,
 								downY: downY,
-								X2: endX2,
-								Y2: endY2,
+								X2: ge.X2,
+								Y2: ge.Y2,
 								downX2: downX2,
 								downY2: downY2,
 								left: setL,
@@ -205,33 +182,31 @@
 								touchLen: ge.touchLen,
 								dev: ge.dev
 							});
+							ge.dev == "pc" && selectionEmpty(); //不让选中
+							stopPropagation(event);
+							callback === false && event.preventDefault();
 						}
-						return false;
+						return;
 					},
 					touchend: function(event) { //up
 						if(LOCK) {
 							return;
 						}
-						stopPropagation(event);
-						elem[0].releaseCapture && elem[0].releaseCapture();
 						LOCK = true; //全部锁定
-						var ge = getEvent(event);
+						var ge = getEvent(event, true); //targetTouches
 						if(oppc) {
 							if(ge.dev == "pc") {
 								if(pcLOCK) {
 									return;
 								}
-							} else if(opisClick) {
+							} else {
 								setTimeout(timeOut, 350); //关PC锁 3秒后关,MOB来处理
 							}
 						}
-						ge.X = getNotNull(ge.X, endX, downX);
-						ge.Y = getNotNull(ge.Y, endY, downY);
-						ge.X2 = getNotNull(ge.X2, endX2, downX2);
-						ge.Y2 = getNotNull(ge.Y2, endY2, downY2);
+						elem[0].releaseCapture && elem[0].releaseCapture();
 						//console.log(ge);
 						if(op.up) {
-							op.up.call(elem, event, newAPI, {
+							var callback = op.up.call(elem, event, newAPI, {
 								X: ge.X,
 								Y: ge.Y,
 								X2: ge.X2,
@@ -244,8 +219,11 @@
 								disT: disT,
 								left: setL,
 								top: setT,
+								touchLen: ge.touchLen,
 								dev: ge.dev
 							});
+							stopPropagation(event);
+							callback === false && event.preventDefault();
 						}
 					}
 				},

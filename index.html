@@ -16,15 +16,15 @@
 			}
 		</style>
 		<script src="MingGe_Min_1.9.6.5.js" type="text/javascript"></script>
-		<script src="MingGe_touch_min.js" type="text/javascript"></script>
+		<script src="MingGe_touch.js" type="text/javascript"></script>
 		<script type="text/javascript">
 			$(function() {
 				var touchApi = $(".main").touch({
 					down: function(event, api, obj) { //按下回调
-
+ 
 					},
 					up: function(event, api, obj) { //放手回调
-						//api当前线程
+					     //api当前线程
 						//停止会删除所有事件api.stop(); 暂停不删除事件，
 						// 暂停，唤醒api.pause();
 						//返回 obj= {
@@ -43,6 +43,7 @@
 						//	touchLen: 多少只手指
 						//	dev: 什么设备按下的
 						//}
+						//return false;
 					},
 					over: function(event, api, obj) { //滑动
 						//api当前线程
