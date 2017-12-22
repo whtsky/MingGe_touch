@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="zh-cmn-Hans">
+<!--
+ * 
+ *  MingGe_touch v2触摸、下拉刷新插件 基于MingGeJs
+ *  
+ *  开发时间2017/12/22
+ *
+ *  作者：明哥先生-QQ2945157617 QQ群：326692453   官网：www.shearphoto.com
+ * 
+ *  支持IE6及所有尘世间所有浏览器
+ *
+ -->
+
+	<head>
+		<meta charset="utf-8" />
+		<meta name="viewport" content="maximum-scale=1.0,minimum-scale=1.0,user-scalable=0,width=device-width,initial-scale=1.0" />
+		<meta name="format-detection" content="telephone=no">
+		<title>下拉刷新DEMO</title>
+		<style type="text/css">
+			html {
+				height: 100%;
+			}
+			
+			body {
+				background: #333;
+				margin: 0;
+				padding: 0;
+				height: 100%;
+			}
+			
+			.main {
+				width: 100%;
+				height: 100%;
+				background: red;
+				position: relative;
+				cursor: move;
+				background: url(bg/author.jpg) 0px -20px;
+				background-size: 100% auto;
+				-webkit-transform: translate3d(0, -50px, 0);
+				-moz-transform: translate3d(0, -50px, 0);
+				-o-transform: translate3d(0, -50px, 0);
+				transform: translate3d(0, -50px, 0);
+				padding-bottom: 50px;
+			}
+			
+			.main.an {
+				transition: transform .3s;
+				-moz-transition: -moz-transform .3s;
+				-webkit-transition: -webkit-transform .3s;
+				-o-transition: -o-transform .3s;
+			}
+			
+			.main.an.ref {
+				-webkit-transform: translate3d(0, 0px, 0);
+				-moz-transform: translate3d(0, 0px, 0);
+				-o-transform: translate3d(0, 0px, 0);
+				transform: translate3d(0, 0px, 0);
+			}
+			
+			.main .tip {
+				color: #fff;
+				font-size: 16px;
+				text-align: center;
+				background: #333;
+				height: 50px;
+				line-height: 50px;
+			}
+			
+			.main .box {
+				position: absolute;
+				top: 200px;
+				left: 0;
+				font-size: 25px;
+				width: 100%;
+				text-align: center;
+				color: #fff;
+				text-shadow: #0BAAE4 0 1px 0;
+			}
+		</style>
+		<script src="../MingGe_Min_1.9.6.5.js" type="text/javascript"></script>
+		<script src="../MingGe_touch_Min_v2.js" type="text/javascript"></script>
+		<script type="text/javascript">
+			$(function() {
+				var tip = $(".tip");
+				var ajaxLock = false;
+				var ajax = function(callback) { //假如这个是AJAX
+					if(ajaxLock) { //判定锁
+						callback("上锁回调的"); //锁住也回调
+					} else {
+						ajaxLock = true; //ajax加锁
+						setTimeout(function() {
+							ajaxLock = false; //AJAX完解锁
+							callback("ajax数据");
+						}, 1000); //模仿AJAX异部
+					}
+
+				}
+				var refreshText = function(value) { //显示的文字
+					switch(value) {
+						case 1:
+							var str = "释放立即刷新";
+							break;
+						case 2:
+							str = "正在刷新...";
+							break;
+						case 3:
+							str = "刷新完成";
+							break;
+						default:
+							str = "下拉刷新";
+					}
+					tip.text(str);
+				}
+
+				var top = 0;
+				var timer = false;
+				clearTimer = function() { //清除定时器
+					if(timer) {
+						clearTimeout(timer);
+						timer = false;
+					}
+				}
+				$(".main").refresh({
+					pc: true, //是否让其支持PC
+					mobile: true, //是否让其支持手机
+					maxX: 30, //如果你是横向拉   那临界点是多少 可以使用function
+					maxY: function() { //如果你是向下拉   那临界点是多少 可以使用function
+						return 30 - top;
+					},
+					ratio: 0.4, //下拉刷新 缓减率 不能大于1 不能少于0
+					callback: function(event, state, ret) { //回调
+						if(ret.isdown) { //手指按下
+							refreshText();
+							top = ret.top;
+							return;
+						}
+						clearTimer(); //清走定时器残留
+						if(ret.isup) { //是否手指松开
+							if(state.Y == 1) { //state.Y =1 达到临界点       state.Y =0未达到临界点 还有state.X 同理
+								refreshText(2);
+								var self = this;
+								ajax(function() { //ajax
+									refreshText(3); //刷新完成
+									timer = setTimeout(function() { //刷新完成  定时1.5秒
+										timer = false;
+										self.removeClass("ref");
+									}, 600);
+								});
+								this.addClass("an").addClass("ref").removeAttr("style");
+							} else {
+								this.addClass("an").removeClass("ref").removeAttr("style");
+							}
+
+							return;
+						}
+
+						if(state.Y == 1) { //state.Y =1 达到临界点       state.Y =0未达到临界点 还有state.X 同理
+							refreshText(1); //释放立即刷新
+						}
+						ret.top += top;
+						this.removeClass("an").css({
+							translate3d: "0," + ret.top + "px,0"
+						});
+					}
+				});
+			});
+		</script>
+	</head>
+
+	<body>
+		<div class="main">
+			<div class="box">试下下拉刷新</div>
+			<div class="tip"></div>
+		</div>
+	</body>
+
+</html>

@@ -1,16 +1,19 @@
 /* 
- *  MingGe_touch 触摸插件
+ *  MingGe_touch v2触摸、下拉刷新插件 基于MingGeJs
  *  
- *  采用MingGejs开发 2017/2/14
+ *  开发时间2017/12/22
  *
- *  作者：明哥先生-QQ399195513 QQ群：17939681   官网：www.shearphoto.com
+ *  作者：明哥先生-QQ2945157617 QQ群：326692453   官网：www.shearphoto.com
+ * 
+ *  支持IE6及所有尘世间所有浏览器
  */
+
 (function(DOC, $) {
 	var $DOC = $(DOC),
-		getRect = function(elem) {
+		getRect = function(elem, isFixed) {
 			if(elem && elem[0]) {
 				var rect = elem[0].getBoundingClientRect();
-				return [rect.left + $DOC.scrollLeft(), rect.top + $DOC.scrollTop()];
+				return isFixed ? [rect.left, rect.top] : [rect.left + $DOC.scrollLeft(), rect.top + $DOC.scrollTop()];
 			}
 		},
 		getEvent = function(event, is) {
@@ -76,11 +79,17 @@
 				isPause = false, //是否暂停
 				disL, //开始触摸点与DIV的左距离
 				disT, //开始触摸点与DIV的左顶距离
+				endX, //最后移动的X值
+				endY, // 最后移动的Y值
+				endX2, //第二手指最后移动的X值
+				endY2, //第二手指最后移动的Y值
 				setL, //要设置的左距
 				setT, //要设置的顶距
 				oppc = op.pc,
 				opmob = op.mob,
 				opisClick = op.isClick,
+				isRefresh = op.isRefresh,
+				isFixed = false,
 				timeOut = function() {
 					pcLOCK = false;
 				},
@@ -107,6 +116,7 @@
 						if(isPause) {
 							return;
 						}
+						isFixed = elem.css("position") == "fixed";
 						var ge = getEvent(event);
 						if(ge) {
 							if(oppc) {
@@ -114,7 +124,7 @@
 									if(pcLOCK) {
 										return;
 									}
-								} else {
+								} else if(opisClick) {
 									pcLOCK = true;
 								}
 							}
@@ -126,27 +136,28 @@
 							return;
 						}
 						LOCK = false; //设备关锁
-						//console.log(ge);
-						var lt = getRect(elem);
+
+						elem[0].setCapture && elem[0].setCapture();
+						var lt = getRect(elem, isFixed);
 						boxL = lt[0];
 						boxT = lt[1];
 						disL = downX - boxL;
 						disT = downY - boxT;
 						if(op.down) {
-
-							var callback = op.down.call(elem, event, newAPI, {
+							var boole = op.down.call(elem, event, newAPI, {
 								X: downX,
 								Y: downY,
 								X2: downX2,
 								Y2: downY2,
+								left: boxL,
+								top: boxT,
 								disL: disL,
 								disT: disT,
 								touchLen: ge.touchLen,
-								dev: ge.dev
+								dev: ge.dev,
+								isdown: true
 							});
-							elem[0].setCapture && elem[0].setCapture();
-							stopPropagation(event);
-							if(!opisClick || callback === false) {
+							if(!opisClick || boole === false) {
 								event.preventDefault();
 							}
 						}
@@ -155,18 +166,24 @@
 						if(LOCK) {
 							return;
 						}
-
 						var ge = getEvent(event);
 						if(oppc && pcLOCK && ge.dev == "pc") {
 							return;
 						}
 						var opClt = clt(op.container);
-						setL = ge.X - disL - op.offsetLeft - opClt[0];
-						setT = ge.Y - disT - op.offsetTop - opClt[1];
+						if(isRefresh) {
+							//下拉移动逻辑开始
+							setL = (ge.X - downX) * isRefresh;
+							setT = (ge.Y - downY) * isRefresh;
+							//下拉移动逻辑结束
+						} else {
+							setL = ge.X - disL - op.offsetLeft - opClt[0];
+							setT = ge.Y - disT - op.offsetTop - opClt[1];
+						}
 						//console.log(ge);
 						//放大缩小逻辑在这
 						if(op.over) {
-							var callback = op.over.call(elem, event, newAPI, {
+							var boole = op.over.call(elem, event, newAPI, {
 								X: ge.X,
 								Y: ge.Y,
 								downX: downX,
@@ -184,9 +201,9 @@
 							});
 							ge.dev == "pc" && selectionEmpty(); //不让选中
 							stopPropagation(event);
-							callback === false && event.preventDefault();
+							boole === false && event.preventDefault();
 						}
-						return;
+
 					},
 					touchend: function(event) { //up
 						if(LOCK) {
@@ -206,7 +223,7 @@
 						elem[0].releaseCapture && elem[0].releaseCapture();
 						//console.log(ge);
 						if(op.up) {
-							var callback = op.up.call(elem, event, newAPI, {
+							var boole = op.up.call(elem, event, newAPI, {
 								X: ge.X,
 								Y: ge.Y,
 								X2: ge.X2,
@@ -220,10 +237,11 @@
 								left: setL,
 								top: setT,
 								touchLen: ge.touchLen,
-								dev: ge.dev
+								dev: ge.dev,
+								isup: true
 							});
 							stopPropagation(event);
-							callback === false && event.preventDefault();
+							boole === false && event.preventDefault();
 						}
 					}
 				},
@@ -256,6 +274,39 @@
 		}
 	}
 	$.fn.extend({
+		refresh: function(op) {
+			op = $.extend({
+				pc: true,
+				mobile: true,
+				maxX: 300,
+				maxY: 300,
+				ratio: 0.4,
+				container: null,
+				callback: null,
+				up: null,
+			}, op);
+			$.isFunction(op.callback) || (op.callback = 0);
+			$.isFunction(op.up) || (op.up = 0);
+			($.isNumber(op.ratio) && op.ratio < 1 && op.ratio > 0) || (op.ratio = 0.4);
+			var RefreshCallback = function(event, api, obj) {
+				op.callback && op.callback.call(this, event, {
+					X: obj.left < ($.isNumber(op.maxX) ? op.maxX : op.maxX()) ? 0 : 1,
+					Y: obj.top < ($.isNumber(op.maxY) ? op.maxY : op.maxY()) ? 0 : 1,
+					isup: !!obj.isup,
+					isdown: !!obj.isdown
+				}, obj);
+				return false;
+			}
+			return this.touch({
+				mobile: op.mobile,
+				pc: op.pc,
+				isRefresh: op.ratio,
+				container: op.container,
+				down: RefreshCallback,
+				up: RefreshCallback,
+				over: RefreshCallback
+			});
+		},
 		touch: function(op) {
 			op = $.extend({
 				down: 0,
@@ -266,6 +317,7 @@
 				mobile: true,
 				offsetTop: 0,
 				isClick: true,
+				isRefresh: false,
 				over: 0
 			}, op);
 			$.isFunction(op.over) || (op.over = 0);
